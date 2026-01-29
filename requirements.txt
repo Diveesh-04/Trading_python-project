@@ -1,0 +1,5 @@
+python-binance==1.0.19
+pydantic>=2.9.0
+pydantic-settings>=2.0.0
+python-dotenv==1.0.0
+rich==13.7.0
