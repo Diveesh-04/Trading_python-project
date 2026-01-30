@@ -60,16 +60,33 @@ class TWAPOrder:
             
             # Ensure each slice meets minimum notional
             current_price = Decimal(str(self.client.get_price(symbol)))
+            current_price_float = float(current_price)
             min_notional = float(self.validator.MIN_NOTIONAL)
-            min_slice_qty = min_notional / float(current_price)
+            min_slice_qty = min_notional / current_price_float
             
             if slice_qty < min_slice_qty:
-                # Adjust number of slices to ensure each meets minimum
+                # 1. First try reducing number of slices to increase quantity per slice
                 num_slices = int(float(total_qty) / min_slice_qty)
                 if num_slices == 0:
                     num_slices = 1
-                slice_qty = round(float(total_qty) / num_slices, qty_precision)
-                logger.info(f"Adjusted to {num_slices} slices to meet minimum notional per slice")
+                
+                # Recalculate slice quantity with new number of slices
+                slice_qty = float(total_qty) / num_slices
+                slice_qty = round(slice_qty, qty_precision)
+                
+                # 2. If it's still below minimum (due to rounding or total quantity being too small),
+                # we must round UP to the next valid step size to ensure it passes the $100 check.
+                if slice_qty < min_slice_qty:
+                    step = 10 ** (-qty_precision)
+                    slice_qty = ((min_slice_qty // step) + 1) * step
+                    slice_qty = round(slice_qty, qty_precision)
+                    
+                    # Recalculate num_slices based on the new larger slice_qty
+                    num_slices = int(float(total_qty) / slice_qty)
+                    if num_slices == 0:
+                        num_slices = 1
+                
+                logger.info(f"Adjusted to {num_slices} slices of {slice_qty} {symbol} to meet minimum notional per slice")
             
             # Calculate interval between slices
             interval_seconds = (duration_minutes * 60) / num_slices

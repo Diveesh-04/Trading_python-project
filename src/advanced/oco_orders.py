@@ -124,47 +124,134 @@ class OCOOrder:
                 f"(current: ${current_price})"
             )
             
-            # Place OCO order using Binance's OCO endpoint
-            # Note: Binance Futures may not support OCO directly, so we'll place two orders
-            # and track them as a pair. For true OCO, we'd need to use the OCO endpoint if available.
-            
             # Place take-profit limit order
-            tp_order = self.client.client.futures_create_order(
-                symbol=symbol,
-                side='SELL' if side_upper == 'BUY' else 'BUY',  # Opposite side for TP
-                type='LIMIT',
-                timeInForce='GTC',
-                quantity=qty_rounded,
-                price=tp_price_rounded
-            )
+            try:
+                tp_order = self.client.client.futures_create_order(
+                    symbol=symbol,
+                    side='SELL' if side_upper == 'BUY' else 'BUY',  # Opposite side for TP
+                    type='LIMIT',
+                    timeInForce='GTC',
+                    quantity=qty_rounded,
+                    price=tp_price_rounded
+                )
+                logger.info(f"Take-profit limit order placed: {tp_order['orderId']}")
+            except Exception as tp_err:
+                logger.error(f"Failed to place take-profit order: {tp_err}")
+                return {"success": False, "error": f"TP Order failed: {tp_err}"}
             
             # Place stop-loss order
-            sl_order = self.client.client.futures_create_order(
-                symbol=symbol,
-                side='SELL' if side_upper == 'BUY' else 'BUY',  # Opposite side for SL
-                type='STOP_MARKET',
-                quantity=qty_rounded,
-                stopPrice=sl_price_rounded
-            )
-            
-            logger.info(f"OCO orders placed: TP={tp_order['orderId']}, SL={sl_order['orderId']}")
-            
-            return {
-                "success": True,
-                "take_profit": {
-                    "order_id": tp_order['orderId'],
-                    "price": tp_order.get('price', tp_price_rounded),
-                    "status": tp_order['status']
-                },
-                "stop_loss": {
-                    "order_id": sl_order['orderId'],
-                    "stop_price": sl_order.get('stopPrice', sl_price_rounded),
-                    "status": sl_order['status']
-                },
-                "symbol": symbol,
-                "quantity": qty_rounded
-            }
-            
+            try:
+                sl_order = self.client.client.futures_create_order(
+                    symbol=symbol,
+                    side='SELL' if side_upper == 'BUY' else 'BUY',  # Opposite side for SL
+                    type='STOP_MARKET',
+                    quantity=qty_rounded,
+                    stopPrice=sl_price_rounded
+                )
+                logger.info(f"Stop-loss order placed: {sl_order['orderId']}")
+                
+                return {
+                    "success": True,
+                    "take_profit": {
+                        "order_id": tp_order['orderId'],
+                        "price": tp_order.get('price', tp_price_rounded),
+                        "status": tp_order['status']
+                    },
+                    "stop_loss": {
+                        "order_id": sl_order['orderId'],
+                        "stop_price": sl_order.get('stopPrice', sl_price_rounded),
+                        "status": sl_order['status']
+                    },
+                    "symbol": symbol,
+                    "quantity": qty_rounded
+                }
+            except Exception as sl_err:
+                error_str = str(sl_err)
+                if 'code=-4120' in error_str or 'not supported' in error_str.lower():
+                    logger.warning(f"Native stop-loss not supported. Switching to SIMULATED OCO mode for the stop-loss leg.")
+                    return self._execute_simulated_oco(
+                        symbol, side_upper, qty_rounded, tp_order, sl_price_rounded
+                    )
+                
+                # If SL fails for other reasons, we should probably cancel the TP order
+                logger.error(f"Stop-loss failed: {sl_err}. Cancelling TP order for safety.")
+                try:
+                    self.client.client.futures_cancel_order(symbol=symbol, orderId=tp_order['orderId'])
+                except:
+                    pass
+                return {"success": False, "error": f"SL Order failed: {sl_err}"}
         except Exception as e:
-            logger.error(f"OCO order failed: {e}")
+            logger.error(f"OCO execution failed: {e}")
             return {"success": False, "error": str(e)}
+
+    def _execute_simulated_oco(self, symbol, side, quantity, tp_order, sl_price):
+        """
+        Monitor price to simulate an OCO (cancel TP if SL hit, or vice versa)
+        """
+        import time
+        tp_id = tp_order['orderId']
+        logger.info(f"Monitoring OCO for {symbol}: TP Order {tp_id}, SL trigger ${sl_price}")
+        
+        try:
+            while True:
+                # 1. Check if TP order was filled
+                try:
+                    current_tp = self.client.client.futures_get_order(symbol=symbol, orderId=tp_id)
+                    if current_tp['status'] == 'FILLED':
+                        logger.info(f"OCO SUCCESS: Take-profit order {tp_id} filled. OCO complete.")
+                        return {
+                            "success": True,
+                            "mode": "simulated_oco",
+                            "status": "TP_FILLED",
+                            "tp_order_id": tp_id
+                        }
+                    if current_tp['status'] in ['CANCELED', 'EXPIRED', 'REJECTED']:
+                        logger.warning(f"Take-profit order {tp_id} was {current_tp['status']}. Stopping OCO.")
+                        return {"success": False, "error": f"TP Order {current_tp['status']}"}
+                except Exception as e:
+                    logger.warning(f"Could not check TP order status: {e}")
+                
+                # 2. Check if SL price hit
+                current_price = Decimal(str(self.client.get_price(symbol)))
+                
+                sl_triggered = False
+                if side == 'BUY':
+                    if current_price <= sl_price:
+                        sl_triggered = True
+                else: # SELL
+                    if current_price >= sl_price:
+                        sl_triggered = True
+                
+                if sl_triggered:
+                    logger.info(f"SL TRIGGERED: Price reached ${current_price}. Cancelling TP order {tp_id} and placing market SL...")
+                    
+                    # Cancel TP
+                    try:
+                        self.client.client.futures_cancel_order(symbol=symbol, orderId=tp_id)
+                    except Exception as e:
+                        logger.error(f"Failed to cancel TP order during SL trigger: {e}")
+                    
+                    # Place market SL
+                    order = self.client.client.futures_create_order(
+                        symbol=symbol,
+                        side='SELL' if side == 'BUY' else 'BUY',
+                        type='MARKET',
+                        quantity=quantity
+                    )
+                    
+                    logger.info(f"OCO SL Executed: Market order {order['orderId']} placed.")
+                    return {
+                        "success": True,
+                        "mode": "simulated_oco",
+                        "status": "SL_TRIGGERED",
+                        "sl_order_id": order['orderId']
+                    }
+                
+                time.sleep(5)
+                
+        except KeyboardInterrupt:
+            logger.warning("Simulated OCO cancelled by user. TP order is still live!")
+            return {"success": False, "error": "Cancelled by user"}
+        except Exception as e:
+            logger.error(f"Simulated OCO error: {e}")
+            return {"success": False, "error": f"Simulation failed: {e}"}

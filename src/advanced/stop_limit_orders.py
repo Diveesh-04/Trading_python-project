@@ -126,7 +126,7 @@ class StopLimitOrder:
             # Note: Binance Futures stop-limit orders require the Algo Order API endpoint
             # which may not be available in testnet. We'll try multiple approaches.
             try:
-                # Approach 1: Try STOP order type (if supported)
+                # Approach 1: Try STOP order type (Stop-Limit)
                 try:
                     order = self.client.client.futures_create_order(
                         symbol=symbol,
@@ -138,13 +138,23 @@ class StopLimitOrder:
                         stopPrice=stop_price_rounded
                     )
                 except Exception as stop_error:
-                    # Approach 2: Try STOP_MARKET (triggers market order, not limit)
                     error_str = str(stop_error)
-                    if 'not supported' in error_str or 'Algo Order' in error_str or 'STOP' in error_str:
+                    
+                    # If it's the specific "Algo Order API" error (-4120), try simulation
+                    if 'code=-4120' in error_str:
+                        logger.warning(f"Native stop orders not supported for this account/symbol. Switching to SIMULATED stop-limit mode.")
+                        return self._execute_simulated(
+                            symbol, side_upper, qty_rounded, limit_price_rounded, stop_price_rounded, current_price
+                        )
+                    
+                    # Approach 2: Try STOP_MARKET (triggers market order, not limit)
+                    logger.debug(f"STOP order attempt failed: {error_str}")
+                    
+                    if 'not supported' in error_str or 'Algo Order' in error_str or 'STOP' in error_str or 'type' in error_str.lower():
                         try:
                             # Use STOP_MARKET as alternative (triggers market order at stop price)
                             log_order_action(logger, 'ORDER_WARNING',
-                                           symbol=symbol, message="STOP order type not supported, trying STOP_MARKET")
+                                           symbol=symbol, message=f"STOP type failed ({error_str}), trying STOP_MARKET")
                             order = self.client.client.futures_create_order(
                                 symbol=symbol,
                                 side='BUY' if side_upper == 'BUY' else 'SELL',
@@ -156,29 +166,53 @@ class StopLimitOrder:
                             log_order_action(logger, 'ORDER_WARNING',
                                            symbol=symbol, message="Using STOP_MARKET (market order) instead of STOP_LIMIT")
                         except Exception as market_error:
-                            # If both fail, return helpful error
-                            return {
-                                "success": False,
-                                "error": (
-                                    "Stop-limit orders require Binance Algo Order API endpoints, "
-                                    "which may not be available in testnet. "
-                                    "Alternative: Use a limit order at your desired price and monitor manually, "
-                                    "or use stop-market orders (STOP_MARKET) which trigger market orders."
+                            market_err_str = str(market_error)
+                            
+                            # If market also fails with -4120, try simulation
+                            if 'code=-4120' in market_err_str:
+                                logger.warning(f"Native stop-market orders not supported. Switching to SIMULATED stop-limit mode.")
+                                return self._execute_simulated(
+                                    symbol, side_upper, qty_rounded, limit_price_rounded, stop_price_rounded, current_price
                                 )
-                            }
+                            
+                            logger.debug(f"STOP_MARKET order attempt failed: {market_err_str}")
+                            
+                            try:
+                                # Final attempt: try STOP_LOSS_LIMIT (used in some API versions)
+                                log_order_action(logger, 'ORDER_WARNING',
+                                               symbol=symbol, message=f"STOP_MARKET failed ({market_err_str}), trying STOP_LOSS_LIMIT")
+                                order = self.client.client.futures_create_order(
+                                    symbol=symbol,
+                                    side='BUY' if side_upper == 'BUY' else 'SELL',
+                                    type='STOP_LOSS_LIMIT',
+                                    timeInForce='GTC',
+                                    quantity=qty_rounded,
+                                    price=limit_price_rounded,
+                                    stopPrice=stop_price_rounded
+                                )
+                            except Exception as stop_loss_error:
+                                final_err_str = str(stop_loss_error)
+                                logger.error(f"Final attempt (STOP_LOSS_LIMIT) failed: {final_err_str}")
+                                # If all fail, return helpful error
+                                return {
+                                    "success": False,
+                                    "error": (
+                                        f"All stop order types failed on testnet.\n"
+                                        f"1. STOP: {error_str}\n"
+                                        f"2. STOP_MARKET: {market_err_str}\n"
+                                        f"3. STOP_LOSS_LIMIT: {final_err_str}\n"
+                                        "Note: Many advanced order types are restricted on Binance Testnet accounts."
+                                    )
+                                }
                     else:
                         raise
             except Exception as e:
                 error_str = str(e)
                 if 'not supported' in error_str or 'Algo Order' in error_str:
-                    return {
-                        "success": False,
-                        "error": (
-                            "Stop-limit orders require Binance Algo Order API. "
-                            "This endpoint may not be fully supported in testnet. "
-                            "Consider using limit orders with monitoring instead."
-                        )
-                    }
+                    # Final fallback to simulation even if we missed a catch block
+                    return self._execute_simulated(
+                        symbol, side_upper, qty_rounded, limit_price_rounded, stop_price_rounded, current_price
+                    )
                 raise
             
             log_order_action(logger, 'ORDER_PLACED',
@@ -204,3 +238,60 @@ class StopLimitOrder:
                            symbol=symbol, side=side.upper(), error_code='EXECUTION_ERROR',
                            message=f"Stop-limit order failed: {error_str}")
             return {"success": False, "error": error_str}
+
+    def _execute_simulated(self, symbol, side, quantity, limit_price, stop_price, start_price):
+        """
+        Execute a simulated stop-limit order by monitoring price
+        """
+        import time
+        logger.info(f"Starting SIMULATED stop-limit order for {symbol} at ${stop_price}...")
+        
+        try:
+            while True:
+                current_price = Decimal(str(self.client.get_price(symbol)))
+                
+                triggered = False
+                if side == 'BUY':
+                    if current_price >= stop_price:
+                        triggered = True
+                else: # SELL
+                    if current_price <= stop_price:
+                        triggered = True
+                
+                if triggered:
+                    logger.info(f"STOP TRIGGERED: Price reached ${current_price}. Placing LIMIT {side} order at ${limit_price}...")
+                    
+                    # Place the actual limit order now
+                    order = self.client.client.futures_create_order(
+                        symbol=symbol,
+                        side='BUY' if side == 'BUY' else 'SELL',
+                        type='LIMIT',
+                        timeInForce='GTC',
+                        quantity=quantity,
+                        price=limit_price
+                    )
+                    
+                    logger.info(f"Simulated stop-limit executed: Limit order {order['orderId']} placed.")
+                    
+                    return {
+                        "success": True,
+                        "mode": "simulated",
+                        "order_id": order['orderId'],
+                        "symbol": symbol,
+                        "side": side,
+                        "quantity": quantity,
+                        "limit_price": limit_price,
+                        "stop_price": stop_price,
+                        "status": "TRIGGERED"
+                    }
+                
+                # Wait 5 seconds between checks
+                time.sleep(5)
+                
+        except KeyboardInterrupt:
+            logger.warning("Simulated stop-limit order cancelled by user.")
+            return {"success": False, "error": "Cancelled by user"}
+        except Exception as e:
+            logger.error(f"Simulated stop-limit error: {e}")
+            return {"success": False, "error": f"Simulation failed: {e}"}
+
