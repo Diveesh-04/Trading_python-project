@@ -2,7 +2,7 @@
 
 A comprehensive command-line trading bot for Binance Futures with support for basic orders (market, limit), advanced orders (stop-limit, OCO, TWAP, grid), comprehensive validation, and structured logging.
 
-## 📋 Table of Contents
+##  Table of Contents
 
 - [Features](#features)
 - [Prerequisites](#prerequisites)
@@ -16,40 +16,40 @@ A comprehensive command-line trading bot for Binance Futures with support for ba
 - [Troubleshooting](#troubleshooting)
 - [Documentation](#documentation)
 
-## ✨ Features
+##  Features
 
 ### Basic Orders (50% of evaluation)
-- ✅ **Market Orders** - Execute immediately at current market price
-- ✅ **Limit Orders** - Execute at specified price or better
-- ✅ **Comprehensive Validation** - Input validation for all parameters
-- ✅ **Automatic Precision Handling** - Correct decimal places for quantity and price
-- ✅ **Minimum Notional Enforcement** - Ensures orders meet $100 minimum
+- **Market Orders** - Execute immediately at current market price
+- **Limit Orders** - Execute at specified price or better
+- **Comprehensive Validation** - Input validation for all parameters
+- **Automatic Precision Handling** - Correct decimal places for quantity and price
+- **Minimum Notional Enforcement** - Ensures orders meet $100 minimum
 
 ### Advanced Orders (30% of evaluation - Higher Priority)
-- ✅ **Stop-Limit Orders** - Trigger limit orders when stop price is hit
-- ✅ **OCO Orders** - One-Cancels-the-Other (take-profit and stop-loss simultaneously)
-- ✅ **TWAP Orders** - Time-Weighted Average Price (split large orders over time)
-- ✅ **Grid Orders** - Automated buy-low/sell-high within price range
+- **Stop-Limit Orders** - Trigger limit orders when stop price is hit
+- **OCO Orders** - One-Cancels-the-Other (take-profit and stop-loss simultaneously)
+- **TWAP Orders** - Time-Weighted Average Price (split large orders over time)
+- **Grid Orders** - Automated buy-low/sell-high within price range
 
 ### Logging & Errors (10% of evaluation)
-- ✅ **Structured Logging** - Comprehensive log files with timestamps
-- ✅ **Daily Log Rotation** - Automatic log file management
-- ✅ **Error Tracking** - Detailed error traces and codes
-- ✅ **Action Logging** - All order actions logged (placement, execution, failures)
+- **Structured Logging** - Comprehensive log files with timestamps
+- **Daily Log Rotation** - Automatic log file management
+- **Error Tracking** - Detailed error traces and codes
+- **Action Logging** - All order actions logged (placement, execution, failures)
 
 ### Documentation (10% of evaluation)
-- ✅ **Comprehensive README** - This file
-- ✅ **Advanced Orders Guide** - Detailed guide for advanced features
-- ✅ **Validation & Logging Docs** - Complete documentation
-- ✅ **Code Comments** - Well-documented codebase
+- **Comprehensive README** - This file
+- **Advanced Orders Guide** - Detailed guide for advanced features
+- **Validation & Logging Docs** - Complete documentation
+- **Code Comments** - Well-documented codebase
 
-## 🔧 Prerequisites
+## Prerequisites
 
 - Python 3.8 or higher
 - Binance API credentials (API Key and Secret)
 - Internet connection
 
-## 📦 Installation
+##  Installation
 
 ### 1. Clone or Download the Project
 
@@ -81,7 +81,7 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## ⚙️ Configuration
+##  Configuration
 
 ### 1. Set Up Environment Variables
 
@@ -109,9 +109,9 @@ FUTURES_TESTNET=true  # Set to false for live trading
 - Visit: https://www.binance.com/en/my/settings/api-management
 - Generate API keys with futures trading permissions
 
-⚠️ **Important:** Always start with testnet (`FUTURES_TESTNET=true`) to test safely!
+ **Important:** Always start with testnet (`FUTURES_TESTNET=true`) to test safely!
 
-## 🚀 Usage
+##  Usage
 
 ### Basic Syntax
 
@@ -126,7 +126,7 @@ python3 run_bot.py --help
 python3 run_bot.py <command> --help
 ```
 
-## 📊 Order Types
+##  Order Types
 
 ### 1. Market Orders
 
@@ -234,21 +234,21 @@ python3 run_bot.py grid BTCUSDT 80000 86000 10 0.001
 
 ### Validation Features
 
-- ✅ Symbol format validation
-- ✅ Quantity validation (positive, within limits)
-- ✅ Price validation (positive, within thresholds)
-- ✅ Minimum notional validation ($100)
-- ✅ Limit price reasonableness checks
-- ✅ Clear error messages
+- Symbol format validation
+- Quantity validation (positive, within limits)
+- Price validation (positive, within thresholds)
+- Minimum notional validation ($100)
+- Limit price reasonableness checks
+- Clear error messages
 
 ### Logging Features
 
-- ✅ Structured log format
-- ✅ Daily log rotation (`logs/bot_YYYY-MM-DD.log`)
-- ✅ Timestamps for all actions
-- ✅ Error traces and codes
-- ✅ Order placement tracking
-- ✅ Execution status logging
+- Structured log format
+-  Daily log rotation (`logs/bot_YYYY-MM-DD.log`)
+-  Timestamps for all actions
+-  Error traces and codes
+-  Order placement tracking
+-  Execution status logging
 
 **Log File Location:**
 ```
@@ -298,17 +298,17 @@ binance_futures_bot/
     └── VALIDATION_LOGGING.md # Validation & logging docs
 ```
 
-## 🛡️ Safety Features
+## Safety Features
 
-- ✅ **Testnet Mode** - Default enabled for safe testing
-- ✅ **Input Validation** - Comprehensive validation before order placement
-- ✅ **Precision Handling** - Automatic rounding to correct decimal places
-- ✅ **Minimum Notional** - Automatic adjustment to meet $100 minimum
-- ✅ **Error Handling** - Comprehensive error handling and reporting
-- ✅ **Structured Logging** - Complete audit trail
-- ✅ **Rate Limiting** - Built-in delays for grid and TWAP orders
+-  **Testnet Mode** - Default enabled for safe testing
+-  **Input Validation** - Comprehensive validation before order placement
+-  **Precision Handling** - Automatic rounding to correct decimal places
+-  **Minimum Notional** - Automatic adjustment to meet $100 minimum
+-  **Error Handling** - Comprehensive error handling and reporting
+-  **Structured Logging** - Complete audit trail
+-  **Rate Limiting** - Built-in delays for grid and TWAP orders
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### "Module not found" errors
 - Ensure virtual environment is activated: `source venv/bin/activate`
@@ -336,7 +336,7 @@ binance_futures_bot/
 - Ensure `logs/` directory is writable
 - Check file permissions
 
-## 📚 Documentation
+##  Documentation
 
 ### Main Documentation
 - **README.md** (this file) - Main project documentation
@@ -348,7 +348,7 @@ binance_futures_bot/
 - Functions are well-documented
 - Type hints where applicable
 
-## 📝 Example Usage
+##  Example Usage
 
 ### Example 1: Simple Market Order
 ```bash
@@ -380,7 +380,7 @@ python3 run_bot.py twap BTCUSDT buy 0.01 10
 python3 run_bot.py grid BTCUSDT 80000 86000 10 0.001
 ```
 
-## ⚠️ Important Notes
+##  Important Notes
 
 1. **Always test on testnet first** - Keep `FUTURES_TESTNET=true` until you're confident
 2. **Start with small amounts** - Test with minimal quantities first
@@ -388,21 +388,6 @@ python3 run_bot.py grid BTCUSDT 80000 86000 10 0.001
 4. **Review logs** - Check log files for any issues
 5. **Understand order types** - Read documentation before using advanced orders
 6. **API key security** - Never commit `.env` file to git
-
-## 📄 License
-
-This project is for educational purposes. Use at your own risk.
-
-## 🤝 Contributing
-
-This is an educational project. Feel free to fork and modify for your own use.
-
-## 📞 Support
-
-For issues or questions:
-1. Check the documentation files
-2. Review log files for error details
-3. Check Binance API status
 
 ---
 
